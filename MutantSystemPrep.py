@@ -22,36 +22,36 @@ path_parent_protien_pdb= initial_with_water.pdb
 template=/home/spurge/work/sdproj/ongoing/MD/system_preping/MutantPrep/reordered.pdb
 
 REQUIREMENTS:
-path_ligand_pdb= STG.pdb
-path_cofactor_pdb= PMP.pdb
-path_ligand_itp= STG.itp
-path_cofactor_itp= PMP.itp
-path_ligand_prm= STG.prm
-path_cofactor_prm= PMP.prm
+path_ligand_pdb= LIG.pdb
+path_cofactor_pdb= COF.pdb
+path_ligand_itp= LIG.itp
+path_cofactor_itp= COF.itp
+path_ligand_prm= LIG.prm
+path_cofactor_prm= COF.prm
 #path_ligand_posre= toppar/posre_UNL.itp
-#path_cofactor_posre= toppar/posre_PMP.itp
+#path_cofactor_posre= toppar/posre_COF.itp
 #path_forcefield_file=
 
 MUTANTS:
 #maintain the pattern of mutations
-1A31=ASP 122 LYS, GLU 583 ARG
-1A32=GLY 780 ARG, LEU 168 LYS, LEU 118 ARG, LEU 576 ASP
+1A31=ASP 222 LYS, GLU 553 ARG
+1A32=GLY 180 ARG, LEU 138 LYS, LEU 178 ARG, LEU 536 ASP
 
 
 TOTOPOL:
 #add the itps to be added in order
 #mol=ffFile:itpFile:resName:mols
-mol1=PMP.prm:PMP.itp:PMP:2
-mol2=STG.prm:STG.itp:STG:1
+mol1=COF.prm:COF.itp:COF:2
+mol2=LIG.prm:LIG.itp:LIG:1
 
 PDBTOCOMPLEX:
 #put in order as above as topol
 #mol1:mol2
-PMP.pdb:STG.pdb
+COF.pdb:LIG.pdb
 
 INDEXGROUPS:
 #name the indexgroups
-Complex=Protein:PMP:STG
+Complex=Protein:COF:LIG
 Solvent=SOL:Ion
 '''
 
@@ -254,7 +254,7 @@ def setup_mutant_folders(dictionary, parent_directory, template):
     1. dictionary => Eg. mutants['variant1']='ASP 122 LYS, GLU 583 ARG'
     2. parent directory ==> path of already system prepared folder
     3. necessary_files ==> a list of paths of all the files needed to be in newly created,
-        variant folder, eg. ['./topol.top','PMP.itp','charmm.ff','./toppar/posre.itp']
+        variant folder, eg. ['./topol.top','COF.itp','charmm.ff','./toppar/posre.itp']
     """
     for mutant, mutation in dictionary.items():
         os.chdir(parent_directory)
