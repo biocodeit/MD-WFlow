@@ -1,0 +1,40 @@
+#Input file for Mutant Prep
+
+PATHS:
+path_main_folder=/home/spurge/work/sdproj/ongoing/MD/system_preping/
+path_parent_folder= /home/spurge/work/sdproj/ongoing/MD/system_preping/MutantPrep/ 
+path_parent_protien_pdb= initial_with_water.pdb 
+template=/home/spurge/work/sdproj/ongoing/MD/system_preping/MutantPrep/reordered.pdb
+
+REQUIREMENTS:
+path_ligand_pdb= STG.pdb 
+path_cofactor_pdb= PMP.pdb 
+path_ligand_itp= STG.itp
+path_cofactor_itp= PMP.itp 
+path_ligand_prm= STG.prm
+path_cofactor_prm= PMP.prm 
+#path_ligand_posre= toppar/posre_UNL.itp 
+#path_cofactor_posre= toppar/posre_PMP.itp 
+#path_forcefield_file=  
+
+MUTANTS:
+#maintain the pattern of mutations
+1A31=ASP 122 LYS, GLU 583 ARG
+1A32=GLY 780 ARG, LEU 168 LYS, LEU 118 ARG, LEU 576 ASP
+
+
+TOTOPOL:
+#add the itps to be added in order
+#mol=ffFile:itpFile:resName:mols
+mol1=PMP.prm:PMP.itp:PMP:2
+mol2=STG.prm:STG.itp:STG:1
+
+PDBTOCOMPLEX:
+#put in order as above as topol
+#mol1:mol2
+PMP.pdb:STG.pdb
+
+INDEXGROUPS:
+#name the indexgroups
+Complex=Protein:PMP:STG
+Solvent=SOL:Ion
