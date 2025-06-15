@@ -11,9 +11,9 @@
 ## Scripts
 
 - 1. MDSysPrep.py
-       **Why:**
-           Helps inpreparing the MD of Protein Ligand System in water solvent. The script is interactive and guide you through the steps.
-           For Amber itp:prm can be made from prmtop
+       **Why:**\
+           Helps inpreparing the MD of Protein Ligand System in water solvent. The script is interactive and guide you through the steps.\
+           For Amber itp:prm can be made from prmtop\
        **Usage:**
            1. python3 MDSysPrep.py --c complex.pdb
            2. Follow the prompts given.
