@@ -17,7 +17,7 @@
            Helps inpreparing the MD of Protein Ligand System in water solvent. The script is interactive and guide you through the steps.\
            For Amber itp:prm can be made from prmtop\
        <ins>Usage:</ins>\
-           1. python3 `MDSysPrep.py --c complex.pdb\`
+           1. `python3 MDSysPrep.py --c complex.pdb`\
            2. Follow the prompts given.\
        <ins>Requirements:</ins>\
            1. Script:mdp files:Complex PDB:Ligand forcefield:Ligand itp:\
@@ -30,10 +30,10 @@
            Large number of Mutants can be creates simulatneously\
            Useful for Single, Double Mutant System Preperations.\
        <ins>Usage:</ins>\
-           1. python3 MutatnSystemPrep.py --in MutantInput.in\
+           1. `python3 MutatnSystemPrep.py --in MutantInput.in`\
            2. Paths of all the things mentioned must be provided in Input file.\
        <ins>Requirements:</ins>\
-           1. Script:Input.in:Folder with already Preped sytem
+           1. Script:Input.in:Folder with already Preped sytem\
            2. Paths of files mentioned in input.in.\
 
   
