@@ -5,7 +5,7 @@
 
  ## Features
  - Command line scripts
- - Flags systems e.g: python3 MDSysPrep.py --c complexFile.pdb
+ - Flags systems e.g: `python3 MDSysPrep.py --c complexFile.pdb`
  - Resumable i.e will keep track of where the script last stopped and resume from there
  - Resume from any step by editing log file.
 
@@ -17,7 +17,7 @@
            Helps inpreparing the MD of Protein Ligand System in water solvent. The script is interactive and guide you through the steps.\
            For Amber itp:prm can be made from prmtop\
        <ins>Usage:</ins>\
-           1. python3 MDSysPrep.py --c complex.pdb\
+           1. python3 `MDSysPrep.py --c complex.pdb\`
            2. Follow the prompts given.\
        <ins>Requirements:</ins>\
            1. Script:mdp files:Complex PDB:Ligand forcefield:Ligand itp:\
