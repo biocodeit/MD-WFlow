@@ -9,6 +9,7 @@ import numpy as np
 import parmed as pmd
 import gromacs as gmx
 
+gmx.config.get_configuration()
 
 #loggging
 requests_logger = logging.getLogger('INFO')
@@ -119,11 +120,12 @@ def complexToPDB(sys, **kwargs):
         
     protein=sys.select_atoms('protein')        
     
-    for a in kwargs['hetRes']:
-        ligand=sys.select_atoms('resname '+a)
-        if len(ligand)==0:
-            raise ValueError('Atom group Empty')
-        protein=protein+ligand
+    if residue !='n':
+        for a in kwargs['hetRes']:
+            ligand=sys.select_atoms('resname '+a)
+            if len(ligand)==0:
+                raise ValueError('Atom group Empty')
+            protein=protein+ligand
     protein=protein.sort(key='ids')
     protein.write('protein.pdb')
 
@@ -150,48 +152,59 @@ def ligAmberToGmx():
     
     prmtops=get_file_type('.prmtop')
     
-    top=get_file_type('.top')   
-    
-    if len(prmtops)+len(top)==0:
-        raise ValueError('prmtop or top files not found!')
-        
-    # give option if top already present
-    if len(top)> 1:
-        proceed=input('prmtop files found. But .top files also present, do you want to proceed(y/n)')
+    top=get_file_type('.top') 
 
-    elif len(top)== 0:
-        proceed='y'
-        
-    if proceed=='y' or len(top)== 0:                                    
-        if len(prmtops) > 0:                                               ## if prmtop files are present
-            print('Found following prmtops')
-            print(prmtops)
-            fileName=input('*'*5+'do we proceed(y/n)'+'*'*5)
-            choices=['y','n']
-            if fileName not in choices:
-                raise ValueError('Please put y/n')
-                
-            while fileName != 'n':
-                fileName=input('which one to be used: (\'n\' to stop)')
-                if fileName != 'n':
-                    prmtopToGmxTop(fileName)
+    itps=get_file_type('.itp')  
     
-                                                                        ## if top files are present
-    top=get_file_type('.top')
+    if len(itps)>0:
+        skip_lig_param=input('itps have been found , do we skip(y/n)')
+
+    try:
+        skip_lig_param
+    except :
+        skip_lig_param=None
+
+    if skip_lig_param==None or skip_lig_param.lower()[0]=='n':
+        if len(prmtops)+len(top)==0:
+            raise ValueError('prmtop or top files not found!')
             
-    if len(top)> 1:
-        proceed=input('The .top files are present, do you want to proceed(y/n)')
-        if proceed=='y':   
-            print('Found top Files. Are these for cof, lig:')
-            print(top)
-            fileName= input('*'*5+'do we proceed (y/n)'+'*'*5)
-            choices=['y','n']
-            if fileName not in choices:
-                raise ValueError('Please put y/n')
-            while fileName != 'n':
-                fileName=input('which one to be used : (\'n\' for stop)' )
-                if fileName !='n':
-                    topToPrm(fileName)
+        # give option if top already present
+        if len(top)> 1:
+            proceed=input('prmtop files found. But .top files also present, do you want to proceed(y/n)')
+
+        elif len(top)== 0:
+            proceed='y'
+            
+        if proceed=='y' or len(top)== 0:                                    
+            if len(prmtops) > 0:                                               ## if prmtop files are present
+                print('Found following prmtops')
+                print(prmtops)
+                fileName=input('*'*5+'do we proceed(y/n)'+'*'*5)
+                choices=['y','n']
+                if fileName not in choices:
+                    raise ValueError('Please put y/n')
+                    
+                while fileName != 'n':
+                    fileName=input('which one to be used: (\'n\' to stop)')
+                    if fileName != 'n':
+                        prmtopToGmxTop(fileName)
+        
+                                                                            ## if top files are present
+        top=get_file_type('.top')
+                
+        if len(top)> 1:
+            proceed=input('The .top files are present, do you want to proceed(y/n)')
+            if proceed=='y':   
+                print('Found top Files. Are these for cof, lig:')
+                print(top)
+                fileName= input('*'*5+'do we proceed (y/n)'+'*'*5)
+                choices=['y','n']
+                if fileName not in choices:
+                    raise ValueError('Please put y/n')
+                while fileName != 'n':
+                    fileName=input('which one to be used : (\'n\' for stop)' )
+                    if fileName !='n':
+                        topToPrm(fileName)
 
 def add_to_topol(fileName, ff_extension, resName, mols, readFN='topol.top', 
                  writeFN='topol_complex.top'):
@@ -259,7 +272,7 @@ def make_complex_gmx_PDB(complexFile, proteinFile, ):
             with open(complexFile, 'a') as writeFile:
                 with open(f'{fileName}', 'r') as readFile:
                     for line in readFile.readlines():
-                        if 'ATOM' in line:
+                        if line.startswith(('ATOM','HETATM')):
                             writeFile.write(line)
 
 def make_gmx_box(**kwargs):
@@ -280,13 +293,13 @@ def make_gmx_box(**kwargs):
             kwargs['edgeDist']=1.0
         
     gmx.editconf(f='complex.pdb',
-                o='newbox.pdb',
+                o='newbox.gro',
                 bt=kwargs['boxType'],
                 c=True,
                 d=kwargs['edgeDist'])
 
 def gmxSolvate(**kwargs):
-    options={'cp':'newbox.pdb',
+    options={'cp':'newbox.gro',
                  'p':'topol_complex.top',
                  'o':'solv.gro'}
 
@@ -307,12 +320,12 @@ def gmxIonTpr(**kwargs):
            c=options['c'],
            r=options['c'],
            p=options['p'],
-           o=options['o'],)
+           o=options['o'])
 
     
 def gmxAdd_Ions(**kwargs):
     options={'s':'ion.tpr', 'p':'topol_complex.top','o':'solv_ions.gro', 'pname':'NA', 'nname':'CL',
-          'neutral':True, 'input':['SOL']}
+          'neutral':True, 'input':['SOL'],'rmin':0.6}
 
     options.update(kwargs)
 
@@ -322,7 +335,8 @@ def gmxAdd_Ions(**kwargs):
           pname=options['pname'],
           nname=options['nname'],
           neutral=options['neutral'],
-          input=options['input'])
+          input=options['input'],
+          rmin=options['rmin'])
 
 def gmxIndexGroup(**kwargs):
     options={'f':'solv_ions.gro', 'o':'index.ndx'}
@@ -360,8 +374,24 @@ def gmxIndexGroup(**kwargs):
 
         index.write(options['o'])
         gmx.check(n=options['o'])
-            
 
+def gmx_insert_mols(**kwargs):
+    options={'f':'newbox.gro','o':'newbox_inserted.gro'}
+    options.update(kwargs)
+
+    gmx.insert_molecules(f=options['f'],
+    o=options['o'],
+    ci=options['ci'],
+    nmol=options['nmol']
+    )
+
+def insert_mols_interactive(choice):
+    if choice.lower()[0]!='n':
+        ci=input('input the gro of mol to be added')
+        nmol=input('how many molecules to be added')
+        gmx_insert_mols(ci=ci, nmol=nmol)
+
+        
 
 if __name__=="__main__":
     ##---- READ THE LOG FILE TO GET THE LAST STEP
@@ -416,11 +446,7 @@ if __name__=="__main__":
         
     ##---- PROTEIN PARAMETERIZATION
     if last_step=='S3.Lig_paramerterized':
-        gmx.pdb2gmx(f='protein.pdb',
-              o='protein.gro',
-              ter=True,
-                ignh=True,
-               input=['5','1'])              #amber forcefield is used
+        os.system('gmx pdb2gmx -f protein.pdb -o protein.gro -ignh -ter')              #amber forcefield is used
         
         gmx.editconf(f='protein.gro',
                 o='protein_gmx.pdb')
@@ -452,21 +478,41 @@ if __name__=="__main__":
         last_step='S7.Box_made'
         logger.warning('S7.Box_made')
     
-    
-    ##---- SOLVATING
     if last_step=='S7.Box_made':
+        choice=input('Is there molecules to be inserted')
+        insert_mols_interactive(choice)
+    
+        last_step='S7.1.Inserted_mols'
+        logger.warning('S7.1.Inserted_mols')
+        if choice=='n':
+            last_step=='S7.Box_made'
+            logger.warning('S7.Box_made')
+
+
+    ##---- SOLVATING
+    if last_step=='Box_made':
         gmxSolvate()
     
         last_step='S8.Solvated'
         logger.warning('S8.Solvated')
-    
+
+    if last_step=='S7.1.Inserted_mols':
+        gmxSolvate(cp='newbox_inserted.gro')
+        last_step='S8.Solvated'
+        logger.warning('S8.Solvated')
+
     
     ##---- ADDING IONS
     if last_step=='S8.Solvated':
-        # write_mdps()
-    
-        gmxIonTpr()
-        gmxAdd_Ions()
+        ionError=input('Are you getting any eroor in ion adding, use rmin?(y/n)')
+        if ionError.lower()[0]=='y':
+            rmin=input('rmin of your choice')
+            gmxSolvate(cp='newbox_inserted.gro')
+            gmxIonTpr()
+            gmxAdd_Ions(rmin=rmin)
+        if ionError.lower()[0]=='n':
+            gmxIonTpr()
+            gmxAdd_Ions()
         
         last_step='S9.Ions_added'
         logger.warning('S9.Ions_added')
