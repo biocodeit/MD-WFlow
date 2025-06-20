@@ -1,7 +1,7 @@
 import sys
-sys.path.append("/home/spurge/scripts")
+sys.path.append("/home/spurge/scripts/Gwork")
 import logging, argparse
-import sys, os, shutil
+import sys, os, shutil, time
 
 import gromacs as gmx
 from modeller import *
@@ -10,39 +10,37 @@ from modeller.automodel import autosched
 from pymsaviz import MsaViz, get_msa_testdata
 import MDAnalysis as mda
 
-from Gwork import MDSysPrep
+from MD_WFlow import MDSysPrep
 
 '''
 #Input file for Mutant Prep
 
 PATHS:
-path_main_folder=/home/spurge/work/sdproj/ongoing/MD/system_preping/bla
-path_parent_folder= /home/spurge/work/sdproj/ongoing/MD/system_preping/MutantPrep/
-path_parent_protien_pdb= initial_with_water.pdb
-template=/home/spurge/work/sdproj/ongoing/MD/system_preping/MutantPrep/reordered.pdb
+path_parent_folder== /home/spurge/work/sdproj/ongoing/MD/system_preping/MutantPrep/
+template==/home/spurge/work/sdproj/ongoing/MD/system_preping/MutantPrep/reordered.pdb
 
 REQUIREMENTS:
-path_ligand_pdb= LIG.pdb
-path_cofactor_pdb= COF.pdb
-path_ligand_itp= LIG.itp
-path_cofactor_itp= COF.itp
-path_ligand_prm= LIG.prm
-path_cofactor_prm= COF.prm
-#path_ligand_posre= toppar/posre_UNL.itp
-#path_cofactor_posre= toppar/posre_COF.itp
-#path_forcefield_file=
+path_ligand_pdb== LIG.pdb
+path_cofactor_pdb== COF.pdb
+path_ligand_itp== LIG.itp
+path_cofactor_itp== COF.itp
+path_ligand_prm== LIG.prm
+path_cofactor_prm== COF.prm
+path_ligand_posre== posre_LIG.itp
+path_cofactor_posre== posre_COF.itp
+#path_forcefield_file==
 
 MUTANTS:
 #maintain the pattern of mutations
-1A31=ASP 234 LYS, GLU 545 ARG
-1A32=GLY 182 ARG, LEU 132 LYS, LEU 172 ARG, LEU 236 ASP
+1A31==ASP 234 LYS, GLU 545 ARG
+1A32==GLY 182 ARG, LEU 132 LYS, LEU 172 ARG, LEU 236 ASP
 
 
 TOTOPOL:
 #add the itps to be added in order
-#mol=ffFile:itpFile:resName:mols
-mol1=COF.prm:COF.itp:COF:2
-mol2=LIG.prm:LIG.itp:LIG:1
+#mol==ffFile:itpFile:resName:mols
+mol1==COF.prm:COF.itp:posre_COF.itp:COF:2
+mol2==LIG.prm:LIG.itp:posre_LIG.itp:LIG:1
 
 PDBTOCOMPLEX:
 #put in order as above as topol
@@ -51,8 +49,8 @@ COF.pdb:LIG.pdb
 
 INDEXGROUPS:
 #name the indexgroups
-Complex=Protein:COF:LIG
-Solvent=SOL:Ion
+Complex==Protein:COF:LIG
+Solvent==SOL:Ion
 '''
 
 
@@ -284,7 +282,7 @@ def copy_selectFiles(file, source, dest):
 def reorder_atoms(self):
     self.rename_segments(segment_ids=['A', 'B'])
 
-def add_to_topol(ff_File, itpFile, resName, mols, readFN='topol.top', 
+def add_to_topol(ff_File, itpFile, posreFile, resName, mols, readFN='topol.top', 
                  writeFN='topol_complex.top'):
     
     print('Checking if itp and ff present')
@@ -303,6 +301,7 @@ def add_to_topol(ff_File, itpFile, resName, mols, readFN='topol.top',
         
             ffBlock=ffBlock+f'\n#include "{ff_File}"'
             itpBlock=itpBlock+f'\n#include "{itpFile}"'
+            itpBlock=itpBlock+f'\n#ifdef POSRES\n#include "{posreFile}"\n#endif'
             noOFmolecules=noOFmolecules+f'{resName}         {mols}\n'
         
             content=[header,ffBlock,itpBlock,ionWaterBlock,sysName,noOFmolecules]
@@ -322,7 +321,7 @@ def make_complex_gmxPDB(complexFile, proteinFile, hetRes):
         for ligand in hetRes:
             with open(ligand, 'r') as readFile:
                 for line in readFile.readlines():
-                    if line.startswith('ATOM'):
+                     if line.startswith(('ATOM','HETATM')):
                         writeFile.write(line)
 
 def copy_mdps(source, dest):
@@ -374,7 +373,7 @@ if __name__=="__main__":
                 if line.startswith('\n'):
                     trigger='noPrint'
                 if not trigger=='noPrint':
-                    line=line.split('=')
+                    line=line.split('==')
                     if trigger=='path' and len(line)>1:
                         paths[line[0]]=line[1].strip('\n').strip(' ')
                     if trigger=='mutants' and len(line)>1:
@@ -433,7 +432,7 @@ if __name__=="__main__":
                   o='protein.gro',
                   ter=True,
                     ignh=True,
-                   input=['5','1'])              #amber forcefield is used
+                   input=['1','1','0','0','0','0'])              #amber forcefield is used
             
             gmx.editconf(f='protein.gro',
                     o='protein_gmx.pdb')
@@ -448,11 +447,15 @@ if __name__=="__main__":
             os.chdir(destination)
             print('Now in', destination)
             shutil.copy('topol.top', 'topol_complex.top')
+            print('ok')
+            time.sleep(3)
+
             for block in ff_files.values():
                 add_to_topol(block[0], 
                         block[1],
                         block[2],
                         block[3],
+                        block[4],
                             readFN='topol_complex.top', writeFN='topol_complex.top')
                     
         last_step='S5.topol_modified'
