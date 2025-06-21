@@ -53,7 +53,153 @@ Complex==Protein:COF:LIG
 Solvent==SOL:Ion
 '''
 
+def check_log(fileName, word):
+    steps=[]
+    with open(fileName, 'r') as readFile:
+        for line in readFile.readlines():
+            if line.startswith(word):
+                step=line.split(':')[-1].strip('\n')
+                steps.append(step)
+            
+    if len(steps)!=0:
+        last_step=steps[-1]
+    else:
+        last_step=None
+    return last_step
 
+def complexToPDB(sys, **kwargs):
+    ##---- writing protein pdb
+    if len(kwargs['hetRes'])==0:
+        residue='n'
+    try:
+        kwargs['hetRes']
+    except:
+        residue=input('Any non-standard residue to be added to protein = ')
+        kwargs['hetRes']=[a.strip(' ') for a in residue.split(',')]
+    else:
+        if not type(kwargs['hetRes'])==list:
+             kwargs['hetRes']=kwargs['hetRes'].split(',')
+        
+    protein=sys.select_atoms('protein')        
+    
+    if residue !='n':
+        for a in kwargs['hetRes']:
+            ligand=sys.select_atoms('resname '+a)
+            if len(ligand)==0:
+                raise ValueError('Atom group Empty')
+            protein=protein+ligand
+    protein=protein.sort(key='ids')
+    protein.write('protein.pdb')
+
+def make_gmx_box(**kwargs):
+    print('Complex will be boxed')
+
+    try:
+        kwargs['boxType']
+    except:
+        print('What box to be used. [triclinic, cubic, dodecahedron, octahedron]')
+        kwargs['boxType']=input('Use default(dodecahedron) with \'y\', or specifiy')
+        if kwargs['boxType']=='y':
+            kwargs['boxType']='dodecahedron'
+    try:
+        kwargs['edgeDist']
+    except:
+        kwargs['edgeDist']=input('Mention the edge distance to be used. \'y\' for 1.0, or specify')
+        if kwargs['edgeDist']=='y':
+            kwargs['edgeDist']=1.0
+        
+    gmx.editconf(f='complex.pdb',
+                o='newbox.gro',
+                bt=kwargs['boxType'],
+                c=True,
+                d=kwargs['edgeDist'])
+
+def gmxSolvate(**kwargs):
+    options={'cp':'newbox.gro',
+                 'p':'topol_complex.top',
+                 'o':'solv.gro'}
+
+    options.update(kwargs)
+    
+    gmx.solvate(cp=options['cp'],
+           p=options['p'],
+           o=options['o'],
+            cs='spc216.gro',)
+    
+def gmxIonTpr(**kwargs):
+    options={'f':'ions.mdp','c':'solv.gro','r':'solv.gro','p':'topol_complex.top','o':'ion.tpr'}
+
+    options.update(kwargs)
+    
+    gmx.grompp(f=options['f'],
+           c=options['c'],
+           r=options['c'],
+           p=options['p'],
+           o=options['o'])
+
+    
+def gmxAdd_Ions(**kwargs):
+    options={'s':'ion.tpr', 'p':'topol_complex.top','o':'solv_ions.gro', 'pname':'NA', 'nname':'CL',
+          'neutral':True, 'input':['SOL'],'rmin':0.6}
+
+    options.update(kwargs)
+
+    gmx.genion(s=options['s'],
+           p=options['p'],
+           o=options['o'],
+          pname=options['pname'],
+          nname=options['nname'],
+          neutral=options['neutral'],
+          input=options['input'],
+          rmin=options['rmin'])
+
+
+def gmxIndexGroup(**kwargs):
+    options={'f':'solv_ions.gro', 'o':'index.ndx'}
+
+    options.update(kwargs)
+    print('Coupling groups can be made')
+    
+    gmx.make_ndx(f= options['f'],
+            o = options['o'],
+            input=['q'])
+    try:
+        kwargs['group']
+    except:
+        index=gmx.fileformats.ndx.uniqueNDX(options['o'])
+        
+        groupName=input('Input group name: ')
+        group_input=input('write input, (\'n\' to stop), (\'g\' another group)')
+        index[groupName]={}
+        
+        while group_input !='n':
+            if group_input=='g':
+                groupName=input('Input group name: ')
+                index[groupName]={}
+                group_input=input('write input')
+            index[groupName]=index[groupName]+index[group_input]
+            group_input=input('write input')
+        index.write(options['o'])
+        gmx.check(n=options['o'])
+    else:
+        index=gmx.fileformats.ndx.uniqueNDX(options['o'])
+        for key, value in kwargs['group'].items():
+            index[key]={}
+            for item in value:
+                index[key]=index[key]+index[item]
+
+        index.write(options['o'])
+        gmx.check(n=options['o'])
+
+def gmx_insert_mols(**kwargs):
+    options={'f':'newbox.gro','o':'newbox_inserted.gro'}
+    options.update(kwargs)
+
+    gmx.insert_molecules(f=options['f'],
+    o=options['o'],
+    ci=options['ci'],
+    nmol=options['nmol']
+    )
 
 class make_mutant:
     def __init__(self, mutant, mutations, template):
@@ -336,13 +482,13 @@ def copy_mdps(source, dest):
 #argument parsing
 parser= argparse.ArgumentParser(prog='MutantSystemPreper',
                                 description='This will prepare system for you')
-parser.add_argument('--in',type=str, help='put input.in file')
+parser.add_argument('--inp',type=str, help='put input.in file')
 args=parser.parse_args()
-# args.in
+args.inp
 
 if __name__=="__main__":
     if os.path.exists('MutPrep.log'):
-        last_step=MDSysPrep.check_log('MutPrep.log', 'WARNING:MtD')
+        last_step=check_log('MutPrep.log', 'WARNING:MtD')
         if last_step==None:
                 last_step='S1.beginning'
     
@@ -352,8 +498,8 @@ if __name__=="__main__":
     logger = logging.getLogger('MtD')
     logging.basicConfig(filename='MutPrep.log', encoding='utf-8', level=logging.WARNING, )
     
-    with open('MutantInput.in', 'r') as readFile:
-        paths, mutants, need_files, ff_files, indexGroups={}, {}, {}, {}, {}
+    with open(args.inp , 'r') as readFile:
+        paths, mutants, extra_files, ff_files, indexGroups, sysVal, inserts={}, {}, {}, {}, {}, {}, {}
         pdbsToTopol=[]
         trigger='noPrint'
         for line in readFile.readlines():
@@ -366,10 +512,14 @@ if __name__=="__main__":
                     trigger='path'
                 if line.startswith('TOTOPOL:'):
                     trigger='topol'
-                if line.startswith('PDBTOCOMPLEX'):
-                    trigger='pdbtotopol'
+                if line.startswith('PDBTOCOMPLEX:'):
+                    trigger='pdbtocomplex'
                 if line.startswith('INDEXGROUPS:'):
                     trigger='indexgroups'
+                if line.startswith('INSERTMOLECULE:'):
+                    trigger='insertMols'
+                if line.startswith('SYSTEMSETUP:'):
+                    trigger='systemSetup'
                 if line.startswith('\n'):
                     trigger='noPrint'
                 if not trigger=='noPrint':
@@ -379,16 +529,30 @@ if __name__=="__main__":
                     if trigger=='mutants' and len(line)>1:
                         mutants[line[0]]=line[1].strip('\n').strip(' ')
                     if trigger=='requirements' and len(line)>1:
-                        need_files[line[0]]=line[1].strip('\n').strip(' ')
+                        extra_files[line[0]]=line[1].strip('\n').strip(' ')
                     if trigger=='topol' and len(line)>1:
                         ff_adds=[a.strip() for a in line[1].split(':')]
                         ff_files[line[0]]=ff_adds
-                    if trigger=='pdbtotopol':
-                        pdbsToTopol=[a.strip() for a in line[0].split(':')]
+                    if trigger=='pdbtocomplex' and len(line)>1:
+                        for a in line[1].split(':'):
+                            pdbsToTopol.append(a.strip())
                     if trigger=='indexgroups' and len(line)>1:
-                        indexGroups[line[0]]=[a.strip() for a in line[1].split(':')]              
-    
-                    
+                        indexGroups[line[0]]=[a.strip() for a in line[1].split(':')] 
+                    if trigger=='insertMols' and len(line)>1:
+                        inserts[line[0]]=[a.strip() for a in line[1].split(':')]
+                    if trigger=='systemSetup' and len(line)>1:
+                        sysVal[line[0]]=line[1].strip()              
+    need_files=[]
+    for value in ff_files.values():
+        for a in value[:-2]:
+            need_files.append(a)
+    for pdb in pdbsToTopol:
+        need_files.append(pdb)
+    for value in inserts.values():
+        need_files.append(value[0])
+        print(pdbsToTopol)  
+    for value in extra_files.values():
+        need_files.append(value)    
     if last_step=='S1.beginning':
         setup_mutant_folders(mutants, paths['path_parent_folder'], paths['template'] )
     
@@ -401,7 +565,7 @@ if __name__=="__main__":
     
     if last_step=='S2.MutantsMade':
         necesarryFiles=[]
-        for key, value in need_files.items():
+        for value in need_files:
             if (not value.isspace()) and value:
                 necesarryFiles.append(value)
             else:
@@ -425,7 +589,7 @@ if __name__=="__main__":
             os.chdir(destination)
             print('Now in', destination)
             sys=mda.Universe('modelled.pdb')
-            MDSysPrep.complexToPDB(sys, hetRes=[])
+            complexToPDB(sys, hetRes=[])
         
             
             gmx.pdb2gmx(f='protein.pdb',
@@ -487,29 +651,44 @@ if __name__=="__main__":
             destination=os.path.join(paths['path_parent_folder'],'../', mutant)
             os.chdir(destination)
             print('Now in', destination)
-            MDSysPrep.make_gmx_box(boxType='dodecahedron', edgeDist=1.0)
+            make_gmx_box(boxType=sysVal['box'], edgeDist=float(sysVal['edgeDist']))
         
         last_step='S7.Box_made'
         logger.warning('S7.Box_made')
         print(100*'*')
         print(' '*40+'Complex Made Succesfully')
         print(100*'*')
-    
-    
-    ##---- SOLVATING
+
+    ##---- INSERT MOLECULES
     if last_step=='S7.Box_made':
-        for mutant in mutants.keys():
-            destination=os.path.join(paths['path_parent_folder'],'../', mutant)
-            os.chdir(destination)
-            print('Now in', destination)
-            MDSysPrep.gmxSolvate()
-    
-        last_step='S8.Solvated'
-        logger.warning('S8.Solvated')
-        print(100*'*')
-        print(' '*40+'Solvated Succesfully')
-        print(100*'*')
-    
+        ##---- SOLVATING
+        if len(inserts)==0:
+            for mutant in mutants.keys():
+                destination=os.path.join(paths['path_parent_folder'],'../', mutant)
+                os.chdir(destination)
+                print('Now in', destination)
+                gmxSolvate()
+        
+            last_step='S8.Solvated'
+            logger.warning('S8.Solvated')
+            print(100*'*')
+            print(' '*40+'Solvated Succesfully')
+            print(100*'*')
+        if len(inserts)>0:
+            for mutant in mutants.keys():
+                destination=os.path.join(paths['path_parent_folder'],'../', mutant)
+                os.chdir(destination)
+                print('Now in', destination)
+                for key, value in inserts.items():
+                    gmx_insert_mols(ci=value[0], nmol=value[1])
+                    gmxSolvate(cp='newbox_inserted.gro')
+        
+            last_step='S8.Solvated'
+            logger.warning('S8.Solvated')
+            print(100*'*')
+            print(' '*40+'Solvated Succesfully')
+            print(100*'*')
+            
     ##---- ADDING IONS
     if last_step=='S8.Solvated':
         # write_mdps()
@@ -518,8 +697,8 @@ if __name__=="__main__":
             os.chdir(destination)
             print('Now in', destination)
             copy_mdps(paths['path_parent_folder'], destination)
-            MDSysPrep.gmxIonTpr()
-            MDSysPrep.gmxAdd_Ions()
+            gmxIonTpr()
+            gmxAdd_Ions()
         
         last_step='S9.Ions_added'
         logger.warning('S9.Ions_added')
